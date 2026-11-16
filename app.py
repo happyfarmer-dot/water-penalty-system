@@ -25,12 +25,12 @@ from ticket_generator import (
 )
 
 BASE_DIR = Path(__file__).parent
-STATIC_DIR = BASE_DIR / "static"
 OUTPUT_DIR = BASE_DIR / "output"
 SAMPLE_EXCEL = Path("/home/antigravity/督導紀錄表-1151101(烏日南屯北段).xlsx")
 
 app = FastAPI(title="承攬商違規缺失辨識與罰單生成系統")
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/data", StaticFiles(directory=str(BASE_DIR / "data")), name="data")
+app.mount("/templates", StaticFiles(directory=str(BASE_DIR / "templates")), name="templates")
 
 CLAUSES_CACHE = load_clauses_data()
 
@@ -66,7 +66,22 @@ class TicketRequest(BaseModel):
 
 @app.get("/")
 def index():
-    return FileResponse(str(STATIC_DIR / "index.html"))
+    return FileResponse(str(BASE_DIR / "index.html"))
+
+
+@app.get("/style.css")
+def serve_css():
+    return FileResponse(str(BASE_DIR / "style.css"), media_type="text/css")
+
+
+@app.get("/app.js")
+def serve_app_js():
+    return FileResponse(str(BASE_DIR / "app.js"), media_type="application/javascript")
+
+
+@app.get("/engine.js")
+def serve_engine_js():
+    return FileResponse(str(BASE_DIR / "engine.js"), media_type="application/javascript")
 
 
 @app.get("/api/clauses")

@@ -1,0 +1,80 @@
+{
+  "meta": {
+    "title": "台灣自來水公司「工安督導小組」督導紀錄表（示範資料）",
+    "project_name": "示範送水管工程（第二標）",
+    "project_code": "TP-115-0001-0001\nTD-115-0001-0001",
+    "inspection_date": {
+      "raw": "2026-11-01",
+      "roc_year": "115",
+      "month": "11",
+      "day": "01",
+      "roc_date_text": "中華民國115年11月01日",
+      "roc_datetime_default": "中華民國115年11月01日10時00分",
+      "weekday": "星期日",
+      "is_weekend": true
+    },
+    "supervision_unit": "工程處",
+    "contractor": "範例營造有限公司",
+    "contract_amount": "120,000,000",
+    "site_manager": "王大明",
+    "safety_officer": "林小華"
+  },
+  "deficiencies": [
+    {
+      "index": 1,
+      "section": "貳、現場作業",
+      "seq": "1",
+      "category": "環境整理整頓",
+      "description": "行走動線應保持暢通，勿堆置材料、設備。"
+    },
+    {
+      "index": 2,
+      "section": "貳、現場作業",
+      "seq": "2",
+      "category": "工作場所負責人及職安人員常駐工地",
+      "description": "本日未見工地主任、職安人員在場指揮監督。"
+    },
+    {
+      "index": 3,
+      "section": "貳、現場作業",
+      "seq": "3",
+      "category": "當日危害告知及於全部勞工",
+      "description": "本日未見簽到退、危害告知資料。"
+    },
+    {
+      "index": 4,
+      "section": "貳、現場作業",
+      "seq": "4",
+      "category": "當日機械、設備檢查及作業檢點紀錄",
+      "description": "固定式起重機過捲揚裝置明顯損壞，已無功能，請立即修復。"
+    },
+    {
+      "index": 5,
+      "section": "貳、現場作業",
+      "seq": "5",
+      "category": "2m以上開口設護欄、護蓋、安全網或安全母索",
+      "description": "工作井多處開口未設護欄及覆蓋，請立即改善。"
+    },
+    {
+      "index": 6,
+      "section": "貳、現場作業",
+      "seq": "6",
+      "category": "吊掛用具無顯著變形及有防脫裝置",
+      "description": "吊鉤無防滑舌片。"
+    },
+    {
+      "index": 7,
+      "section": "貳、現場作業",
+      "seq": "7",
+      "category": "電氣設備絕緣、漏電斷路器、非帶電金屬外殼接地",
+      "description": "發電機應設置設備接地、金屬外殼接地。"
+    },
+    {
+      "index": 8,
+      "section": "貳、現場作業",
+      "seq": "8",
+      "category": "氣體連續監測並定期確認氧氣及危害物質濃度",
+      "description": "局限空間作業前未依規定氣體偵測及作業中連續監測。"
+    }
+  ]
+}

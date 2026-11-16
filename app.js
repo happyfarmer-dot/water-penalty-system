@@ -1,10 +1,20 @@
+import {
+  calculateTotal,
+  formatViolationLine,
+  generateTicketDocxBlob,
+  intToChineseCurrency,
+  matchDeficienciesClient,
+  parseDeficiencyWorkbook,
+} from "./engine.js";
+
 const state = {
+  clausesData: null,
   allClauses: [],
   clausesById: {},
   items: [],
   suggestions: [],
   sourceFilename: "",
-  modalTargetIndex: null, // null -> browse/add mode, number -> replace item at index
+  modalTargetIndex: null,
 };
 
 const el = (id) => document.getElementById(id);
@@ -14,12 +24,13 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add("show");
   clearTimeout(showToast._timer);
-  showToast._timer = setTimeout(() => t.classList.remove("show"), 3200);
+  showToast._timer = setTimeout(() => t.classList.remove("show"), 3400);
 }
 
 async function fetchClauses() {
-  const resp = await fetch("/api/clauses");
+  const resp = await fetch("./data/clauses.json");
   const data = await resp.json();
+  state.clausesData = data;
   state.allClauses = data.clauses || [];
   state.clausesById = {};
   for (const c of state.allClauses) {
@@ -44,18 +55,27 @@ async function handleFileUpload(file) {
   if (!file) return;
   showToast(`正在解析「${file.name}」並比對契約條文...`);
   try {
-    const content_base64 = await fileToBase64(file);
-    const resp = await fetch("/api/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filename: file.name, content_base64 }),
-    });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(err.detail || "解析失敗");
+    let result;
+    if (window.XLSX) {
+      const buf = await file.arrayBuffer();
+      const parsed = parseDeficiencyWorkbook(buf);
+      result = matchDeficienciesClient(parsed, state.clausesData);
+      result.source_filename = file.name;
+    } else {
+      // Fallback if running behind local FastAPI without CDN
+      const content_base64 = await fileToBase64(file);
+      const resp = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: file.name, content_base64 }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail || "解析失敗");
+      }
+      result = await resp.json();
     }
-    const data = await resp.json();
-    loadAnalysisResult(data);
+    loadAnalysisResult(result);
     showToast("已完成條文辨識！請先核對並修改欄位後再生成罰單。");
   } catch (e) {
     showToast(`錯誤：${e.message}`);
@@ -63,13 +83,15 @@ async function handleFileUpload(file) {
 }
 
 async function loadSample() {
-  showToast("正在載入範例缺失單並比對契約條文...");
+  showToast("正在載入示範缺失單並比對契約條文...");
   try {
-    const resp = await fetch("/api/analyze-sample", { method: "POST" });
-    if (!resp.ok) throw new Error("載入範例失敗");
-    const data = await resp.json();
-    loadAnalysisResult(data);
-    showToast("已載入範例缺失單，請確認修改欄位後再生成罰單。");
+    const resp = await fetch("./data/sample_deficiencies.json");
+    if (!resp.ok) throw new Error("無法讀取示範資料");
+    const parsed = await resp.json();
+    const result = matchDeficienciesClient(parsed, state.clausesData);
+    result.source_filename = "督導紀錄表-示範範例.xlsx";
+    loadAnalysisResult(result);
+    showToast("已載入示範缺失單，請先確認修改欄位後再生成罰單。");
   } catch (e) {
     showToast(`錯誤：${e.message}`);
   }
@@ -242,7 +264,6 @@ function renderItems() {
       </div>
     `;
 
-    // Bind events
     card.querySelector(".def-check").addEventListener("change", (e) => {
       state.items[idx].selected = e.target.checked;
       renderItems();
@@ -314,7 +335,6 @@ function applyClauseToItem(idx, cid) {
   it.selected = true;
   it.custom_line = "";
 
-  // Check overlap warning from candidate or clause
   const matchedCand = (it.candidates || []).find((c) => c.clause_id === cid);
   if (matchedCand) {
     it.overlap_warning = matchedCand.overlap_warning;
@@ -416,49 +436,40 @@ function buildTicketPayload() {
   };
 }
 
-let previewTimer = null;
 function updatePreview() {
-  clearTimeout(previewTimer);
-  previewTimer = setTimeout(async () => {
-    const payload = buildTicketPayload();
-    el("pvProjectName").textContent = payload.project_name;
-    el("pvProjectCode").textContent = payload.project_code;
-    el("pvContractor").textContent = payload.contractor;
-    el("pvSafetyOfficer").textContent = payload.safety_officer;
-    el("pvEvidence").textContent = payload.evidence_note ? `[佐證資料]\n${payload.evidence_note}` : "[佐證資料]";
+  const payload = buildTicketPayload();
+  el("pvProjectName").textContent = payload.project_name;
+  el("pvProjectCode").textContent = payload.project_code;
+  el("pvContractor").textContent = payload.contractor;
+  el("pvSafetyOfficer").textContent = payload.safety_officer;
+  el("pvEvidence").textContent = payload.evidence_note ? `[佐證資料]\n${payload.evidence_note}` : "[佐證資料]";
 
-    try {
-      const resp = await fetch("/api/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const pv = await resp.json();
-      el("confirmNumericTotal").textContent = `${pv.total.toLocaleString()} 元`;
-      el("confirmChineseTotal").textContent = `新台幣(大寫)：${pv.chinese_total}`;
-      el("pvTotalWords").textContent = `新台幣(大寫)：${pv.chinese_total}`;
-      el("pillSelected").textContent = `已勾選開罰：${pv.selected_count} 項`;
+  const selected = payload.items.filter((it) => it.selected);
+  const total = payload.override_total != null ? Number(payload.override_total) : calculateTotal(selected);
+  const chineseTotal = intToChineseCurrency(total);
+  const lines = selected.map(formatViolationLine);
 
-      const vLines = [
-        `[發生時間]：${payload.occur_time}`,
-        `[發生地點]：${payload.occur_location}`,
-        payload.violation_summary ? `[違規情形]：${payload.violation_summary}` : "[違規情形]：",
-        `[罰款金額]：${pv.total.toLocaleString()}元`,
-        ...pv.lines,
-      ];
-      el("pvViolations").innerHTML = vLines
-        .map((ln) => `<div class="ticket-v-item">${escapeHtml(ln)}</div>`)
-        .join("");
-    } catch (e) {
-      console.error(e);
-    }
-  }, 60);
+  el("confirmNumericTotal").textContent = `${total.toLocaleString()} 元`;
+  el("confirmChineseTotal").textContent = `新台幣(大寫)：${chineseTotal}`;
+  el("pvTotalWords").textContent = `新台幣(大寫)：${chineseTotal}`;
+  el("pillSelected").textContent = `已勾選開罰：${selected.length} 項`;
+
+  const vLines = [
+    `[發生時間]：${payload.occur_time}`,
+    `[發生地點]：${payload.occur_location}`,
+    payload.violation_summary ? `[違規情形]：${payload.violation_summary}` : "[違規情形]：",
+    `[罰款金額]：${total.toLocaleString()}元`,
+    ...lines,
+  ];
+  el("pvViolations").innerHTML = vLines
+    .map((ln) => `<div class="ticket-v-item">${escapeHtml(ln)}</div>`)
+    .join("");
 }
 
 async function confirmAndGenerate() {
   const payload = buildTicketPayload();
-  const selectedCount = payload.items.filter((x) => x.selected).length;
-  if (selectedCount === 0) {
+  const selected = payload.items.filter((x) => x.selected);
+  if (selected.length === 0) {
     showToast("請至少勾選一項違規條文再生成罰單。");
     return;
   }
@@ -468,25 +479,39 @@ async function confirmAndGenerate() {
   btn.textContent = "正在生成 Word 罰單...";
 
   try {
-    const resp = await fetch("/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!resp.ok) throw new Error("生成失敗");
-    const res = await resp.json();
+    let filename = payload.output_filename || "(_罰單_)_違規稽查表.docx";
+    if (!filename.toLowerCase().endsWith(".docx")) filename += ".docx";
+    const total = payload.override_total != null ? Number(payload.override_total) : calculateTotal(selected);
+    const chineseTotal = intToChineseCurrency(total);
+    let blob;
 
-    // 觸發瀏覽器下載
-    const bin = atob(res.content_base64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    const blob = new Blob([bytes], {
-      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    });
+    if (window.JSZip) {
+      const tplResp = await fetch("./templates/ticket_template.docx");
+      if (!tplResp.ok) throw new Error("找不到 Word 範本檔案");
+      const tplBuf = await tplResp.arrayBuffer();
+      blob = await generateTicketDocxBlob(payload, tplBuf);
+    } else {
+      // Fallback to local FastAPI endpoint if JSZip CDN unavailable
+      const resp = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!resp.ok) throw new Error("生成失敗");
+      const res = await resp.json();
+      filename = res.filename;
+      const bin = atob(res.content_base64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      blob = new Blob([bytes], {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+    }
+
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = res.filename;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -494,8 +519,8 @@ async function confirmAndGenerate() {
 
     const outBox = el("generatedResult");
     outBox.classList.remove("hidden");
-    outBox.innerHTML = `已確認並產出罰單：<strong>${escapeHtml(res.filename)}</strong>（總額 ${res.total.toLocaleString()} 元／${escapeHtml(res.chinese_total)}）<br/>伺服器存檔位置：<code>${escapeHtml(res.saved_path)}</code>`;
-    showToast(`罰單「${res.filename}」已生成並下載！`);
+    outBox.innerHTML = `已確認並產出罰單：<strong>${escapeHtml(filename)}</strong>（總額 ${total.toLocaleString()} 元／${escapeHtml(chineseTotal)}）`;
+    showToast(`罰單「${filename}」已生成並下載！`);
   } catch (e) {
     showToast(`生成錯誤：${e.message}`);
   } finally {
@@ -504,7 +529,6 @@ async function confirmAndGenerate() {
   }
 }
 
-// Clause Modal
 function openClauseModal(targetIdx = null) {
   state.modalTargetIndex = targetIdx;
   el("modalTitle").textContent =
@@ -564,7 +588,7 @@ function renderClauseModalList() {
         applyClauseToItem(state.modalTargetIndex, c.id);
       } else {
         if (el("workspace").classList.contains("hidden")) {
-          showToast("請先匯入缺失單或載入範例後再加入條文。");
+          showToast("請先匯入缺失單或載入示範資料後再加入條文。");
           return;
         }
         addManualClause(c);
@@ -576,7 +600,6 @@ function renderClauseModalList() {
   }
 }
 
-// Init
 document.addEventListener("DOMContentLoaded", async () => {
   await fetchClauses();
 

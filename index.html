@@ -8,7 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="./style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </head>
 <body>
   <header class="topbar">
@@ -25,20 +27,18 @@
   </header>
 
   <main class="container">
-    <!-- Upload Panel -->
     <section class="upload-panel">
       <div class="upload-zone" id="dropZone">
         <h2>步驟一：匯入稽核單位缺失單（.xlsx）</h2>
-        <p>拖曳「督導紀錄表」Excel 檔案到此處，或點擊選擇檔案；系統將自動辨識契約罰則條文並提供完整人工修改欄位。</p>
+        <p>拖曳「督導紀錄表」Excel 檔案到此處，或點擊選擇檔案（資料皆於本機瀏覽器端運算）；系統將自動辨識契約罰則條文並提供完整人工修改欄位。</p>
         <input type="file" id="fileInput" accept=".xlsx,.xlsm" class="hidden" />
         <div class="upload-buttons">
           <button type="button" class="btn btn-primary" id="btnPickFile">選擇缺失單檔案 (.xlsx)</button>
-          <button type="button" class="btn btn-outline" id="btnLoadSample">載入範例缺失單（1151101 烏日南屯北段）</button>
+          <button type="button" class="btn btn-outline" id="btnLoadSample">載入示範缺失單體驗</button>
         </div>
       </div>
     </section>
 
-    <!-- Status Bar -->
     <section class="status-bar hidden" id="statusBar">
       <div class="status-pills">
         <span class="pill pill-accent" id="pillFile">檔案：-</span>
@@ -51,11 +51,8 @@
       </div>
     </section>
 
-    <!-- Main Editable Workspace -->
     <section class="workspace-grid hidden" id="workspace">
-      <!-- Left Column: Editable Form + Matched Clauses -->
       <div>
-        <!-- Step 2: Basic Info -->
         <div class="panel">
           <div class="panel-header">
             <h2 class="panel-title"><span class="step-badge">2</span> 基本資料與違規時地（可手動修改）</h2>
@@ -102,7 +99,6 @@
           </div>
         </div>
 
-        <!-- Step 3: Deficiency Clause Mapping -->
         <div class="panel">
           <div class="panel-header">
             <h2 class="panel-title"><span class="step-badge">3</span> 契約條文辨識與人工核對修改</h2>
@@ -115,7 +111,6 @@
         </div>
       </div>
 
-      <!-- Right Column: Live Ticket Preview & Confirmation -->
       <div class="preview-sticky">
         <div class="panel">
           <div class="panel-header">
@@ -185,7 +180,6 @@
     </section>
   </main>
 
-  <!-- Clause Picker Modal -->
   <div class="modal-backdrop" id="clauseModal">
     <div class="modal">
       <div class="modal-header">
@@ -205,6 +199,6 @@
   </div>
 
   <div class="toast" id="toast"></div>
-  <script src="/static/app.js"></script>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>
