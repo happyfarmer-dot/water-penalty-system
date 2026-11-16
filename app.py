@@ -142,7 +142,7 @@ def generate_ticket(req: TicketRequest):
     total = req.override_total if req.override_total is not None else calculate_total(selected)
     chinese_total = int_to_chinese_currency(int(total))
 
-    # 檔名整理
+    # 檔名整理（純記憶體產出並回傳瀏覽器下載，不留存於伺服器）
     base_name = req.output_filename
     if not base_name:
         m_date = re.search(r"(\d{2,3})年(\d{1,2})月(\d{1,2})日", req.occur_time)
@@ -152,13 +152,9 @@ def generate_ticket(req: TicketRequest):
         base_name += ".docx"
 
     safe_name = re.sub(r'[\\/:*?"<>|]', "_", base_name)
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = OUTPUT_DIR / safe_name
-    out_path.write_bytes(docx_bytes)
 
     return JSONResponse({
         "filename": safe_name,
-        "saved_path": str(out_path),
         "total": int(total),
         "chinese_total": chinese_total,
         "content_base64": base64.b64encode(docx_bytes).decode("ascii"),

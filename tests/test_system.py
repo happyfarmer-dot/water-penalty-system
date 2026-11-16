@@ -130,8 +130,8 @@ def test_api_handlers():
     gen_resp = generate_ticket(req)
     gen_json = json.loads(gen_resp.body.decode("utf-8"))
     assert gen_json["filename"] == "test_output_ticket.docx"
-    assert Path(gen_json["saved_path"]).exists()
-    Path(gen_json["saved_path"]).unlink(missing_ok=True)
+    raw_docx = base64.b64decode(gen_json["content_base64"])
+    assert len(Document(io.BytesIO(raw_docx)).tables) == 1
 
 
 if __name__ == "__main__":
