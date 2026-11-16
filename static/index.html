@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>台灣自來水公司｜承攬商違規缺失辨識與罰單生成系統</title>
+  <meta name="description" content="匯入督導紀錄表缺失單，自動比對契約TS-01及職安保命條款，人工確認修改後產出標準TS-02罰扣款通知單。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Noto+Serif+TC:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">台水</div>
+      <div>
+        <h1>承攬商違規缺失辨識與罰單生成系統</h1>
+        <p>依據《施工說明書總則》TS-01（112.12修訂）暨職安保命條款（工安天條）自動比對・人工確認後輸出 TS-02 罰單</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button type="button" class="btn btn-ghost" id="btnBrowseClauses">契約條文查詢（195條）</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Upload Panel -->
+    <section class="upload-panel">
+      <div class="upload-zone" id="dropZone">
+        <h2>步驟一：匯入稽核單位缺失單（.xlsx）</h2>
+        <p>拖曳「督導紀錄表」Excel 檔案到此處，或點擊選擇檔案；系統將自動辨識契約罰則條文並提供完整人工修改欄位。</p>
+        <input type="file" id="fileInput" accept=".xlsx,.xlsm" class="hidden" />
+        <div class="upload-buttons">
+          <button type="button" class="btn btn-primary" id="btnPickFile">選擇缺失單檔案 (.xlsx)</button>
+          <button type="button" class="btn btn-outline" id="btnLoadSample">載入範例缺失單（1151101 烏日南屯北段）</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Status Bar -->
+    <section class="status-bar hidden" id="statusBar">
+      <div class="status-pills">
+        <span class="pill pill-accent" id="pillFile">檔案：-</span>
+        <span class="pill" id="pillMatched">辨識缺失：0 項</span>
+        <span class="pill pill-ok" id="pillSelected">已勾選開罰：0 項</span>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button type="button" class="btn btn-outline btn-sm" id="btnMergeSame">合併相同條號（計次 × N）</button>
+        <button type="button" class="btn btn-outline btn-sm" id="btnAddManualItem">＋ 手動新增罰則項目</button>
+      </div>
+    </section>
+
+    <!-- Main Editable Workspace -->
+    <section class="workspace-grid hidden" id="workspace">
+      <!-- Left Column: Editable Form + Matched Clauses -->
+      <div>
+        <!-- Step 2: Basic Info -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title"><span class="step-badge">2</span> 基本資料與違規時地（可手動修改）</h2>
+          </div>
+          <div class="panel-body">
+            <div class="form-grid">
+              <div class="field">
+                <label for="fProjectName">工程名稱</label>
+                <input type="text" id="fProjectName" />
+              </div>
+              <div class="field">
+                <label for="fProjectCode">工程編號（多筆可換行）</label>
+                <textarea id="fProjectCode" rows="2" style="min-height:42px;"></textarea>
+              </div>
+              <div class="field">
+                <label for="fContractor">廠商名稱</label>
+                <input type="text" id="fContractor" />
+              </div>
+              <div class="field">
+                <label for="fSafetyOfficer">職安人員</label>
+                <input type="text" id="fSafetyOfficer" />
+              </div>
+              <div class="field">
+                <label for="fOccurTime">[發生時間]</label>
+                <input type="text" id="fOccurTime" placeholder="例：中華民國115年11月01日10時00分" />
+              </div>
+              <div class="field">
+                <label for="fOccurLocation">[發生地點]</label>
+                <input type="text" id="fOccurLocation" placeholder="例：工地(節點17-1)" />
+              </div>
+              <div class="field">
+                <label for="fViolationSummary">[違規情形] 總述（可留空）</label>
+                <input type="text" id="fViolationSummary" placeholder="選填，將接在 [違規情形]：後方" />
+              </div>
+              <div class="field">
+                <label for="fOutputFilename">輸出罰單檔名</label>
+                <input type="text" id="fOutputFilename" placeholder="(_罰單_)_違規稽查表1151101.docx" />
+              </div>
+              <div class="field full">
+                <label for="fEvidenceNote">[佐證資料] / 備註內容</label>
+                <textarea id="fEvidenceNote" rows="2" placeholder="可填寫佐證照片編號、督導紀錄表編號等"></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Deficiency Clause Mapping -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title"><span class="step-badge">3</span> 契約條文辨識與人工核對修改</h2>
+            <span style="font-size:12.5px; color:var(--text-muted);">請逐項核對條號、單價、計次及重複倍數，確認後再於右側生成罰單</span>
+          </div>
+          <div class="panel-body">
+            <div id="suggestionsContainer"></div>
+            <div class="item-list" id="itemsContainer"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Live Ticket Preview & Confirmation -->
+      <div class="preview-sticky">
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title"><span class="step-badge">4</span> 罰單即時預覽與確認輸出（TS-02）</h2>
+          </div>
+          <div class="panel-body" style="padding:14px;">
+            <div class="ticket-paper" id="ticketPreview">
+              <div class="ticket-head-title">
+                台灣自來水股份有限公司<br />
+                承攬商違反職業安全衛生規定罰扣款通知單
+              </div>
+              <table class="ticket-table">
+                <tbody>
+                  <tr>
+                    <td class="lbl">工程<br />名稱</td>
+                    <td id="pvProjectName"></td>
+                    <td class="lbl">工程<br />編號</td>
+                    <td id="pvProjectCode" style="white-space:pre-line;"></td>
+                  </tr>
+                  <tr>
+                    <td class="lbl">廠商<br />名稱</td>
+                    <td id="pvContractor"></td>
+                    <td class="lbl">職安<br />人員</td>
+                    <td id="pvSafetyOfficer"></td>
+                  </tr>
+                  <tr>
+                    <td class="lbl">違<br /><br />規<br /><br />事<br /><br />項</td>
+                    <td colspan="3" class="v-lines" id="pvViolations"></td>
+                  </tr>
+                  <tr>
+                    <td class="lbl">罰款總額</td>
+                    <td colspan="3" id="pvTotalWords"></td>
+                  </tr>
+                  <tr>
+                    <td class="lbl">備<br /><br />註</td>
+                    <td colspan="3" id="pvEvidence" style="white-space:pre-line;"></td>
+                  </tr>
+                </tbody>
+              </table>
+              <div class="ticket-footnote">
+                1.廠商如有異議，應於收到本通知單10日內申覆。<br />
+                2.本通知單一式四聯，分送承攬商、主辦單位、會計室、抽查小組。<br />
+                3.罰鍰金額以現金或即期支票至本公司出納繳交罰款，或依契約相關規定辦理扣抵，再以營業外收入入帳。
+              </div>
+            </div>
+          </div>
+
+          <div class="confirm-bar">
+            <div class="total-summary">
+              <div>
+                <div style="font-size:12.5px; color:var(--text-muted);">目前合計罰款（確認後即寫入 Word 罰單）</div>
+                <div style="font-size:13px; font-weight:600; color:var(--text);" id="confirmChineseTotal">新台幣(大寫)：零元整</div>
+              </div>
+              <div class="total-amount" id="confirmNumericTotal">0 元</div>
+            </div>
+            <div class="field" style="flex-direction:row; align-items:center; gap:10px;">
+              <label for="fOverrideTotal" style="white-space:nowrap; margin:0;">手動覆寫總金額（選填）</label>
+              <input type="number" id="fOverrideTotal" placeholder="留空則自動加總" min="0" step="1000" />
+            </div>
+            <button type="button" class="btn btn-accent" id="btnConfirmGenerate" style="width:100%; padding:11px 16px; font-size:15px;">
+              確認無誤，生成並下載罰單 (.docx)
+            </button>
+            <div id="generatedResult" class="hidden" style="font-size:12.5px; color:var(--ok-text); background:var(--ok-bg); padding:8px 10px; border-radius:6px;"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Clause Picker Modal -->
+  <div class="modal-backdrop" id="clauseModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modalTitle">契約罰則條文查詢與選用</h3>
+        <button type="button" class="btn btn-outline btn-sm" id="btnCloseModal">關閉</button>
+      </div>
+      <div class="modal-search">
+        <input type="text" id="clauseSearchInput" placeholder="輸入條號或關鍵字搜尋（例：4.8、過捲、接地、安全帶、天條、局限空間...）" />
+        <select id="clauseSourceFilter" style="width:180px;">
+          <option value="">全部來源</option>
+          <option value="TS-01">TS-01 違規稽查表</option>
+          <option value="職安保命條款(工安天條)">職安保命條款(工安天條)</option>
+        </select>
+      </div>
+      <div class="modal-list" id="clauseModalList"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
